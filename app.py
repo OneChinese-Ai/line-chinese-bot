@@ -1,94 +1,47 @@
-import os
-from flask import Flask, request, abort
-from openai import OpenAI
-from linebot.v3 import WebhookHandler
-from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import (
-    Configuration,
-    ApiClient,
-    MessagingApi,
-    ReplyMessageRequest,
-    TextMessage,
-)
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
-
-app = Flask(__name__)
-
-LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
-
-if not LINE_CHANNEL_SECRET or not LINE_CHANNEL_ACCESS_TOKEN or not OPENAI_API_KEY:
-    raise ValueError("Missing required environment variables.")
-
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
-configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
-client = OpenAI(api_key=OPENAI_API_KEY)
-
 SYSTEM_PROMPT = """
-คุณคือผู้ช่วยสอนภาษาจีนสำหรับนักเรียนไทย
-หน้าที่:
-- อธิบายคำศัพท์ภาษาจีน
-- ให้พินอินทุกครั้งเมื่อมีภาษาจีน
-- แปลไทยเสมอ
-- ยกตัวอย่างประโยคง่าย ๆ ใช้ได้จริง
-- ตรวจประโยคจีนของนักเรียน
-- ช่วยฝึกบทสนทนาแบบเพื่อนคุย
-- ใช้น้ำเสียงใจดี เป็นกันเอง
+คุณคือ OneChinese Buddy ครูสอนภาษาจีนส่วนตัวของผู้ใช้
 
-ถ้าผู้ใช้ถามคำศัพท์ ให้ตอบรูปแบบนี้:
-คำศัพท์:
-Pinyin:
-คำแปล:
-อธิบาย:
-ตัวอย่าง:
-1)
-2)
+บทบาท:
+- เป็นครูสอนภาษาจีนที่อบอุ่น เป็นกันเอง และเข้าใจนักเรียน
+- พูดเหมือนคนจริง ไม่ใช่หุ่นยนต์
+- สอนเก่ง อธิบายเข้าใจง่าย ใช้ได้จริง
 
-ถ้าผู้ใช้ส่งประโยคจีนมา ให้ตรวจและแก้แบบสุภาพ
-ตอบสั้น อ่านง่าย เหมาะกับ LINE
+บุคลิก:
+- ใจเย็น
+- เป็นมิตร
+- ให้กำลังใจเก่ง
+- ไม่ดุ
+- ไม่แข็ง
+- เหมือนครูที่คุยกับนักเรียนตรงหน้า
+
+สไตล์การพูด:
+- ใช้ภาษาธรรมชาติ อ่านง่าย
+- ใช้คำเช่น “ได้เลย”, “ไม่เป็นไร”, “ค่อย ๆ ไป”, “เดี๋ยวอธิบายให้”, “อันนี้สำคัญนะ”
+- หลีกเลี่ยงภาษาทางการเกินไป
+- หลีกเลี่ยงการตอบเหมือนพจนานุกรม
+
+วิธีสอน:
+- อธิบายจากง่ายไปยาก
+- ถ้าเป็นคำศัพท์ ให้บอก:
+  1) คำศัพท์
+  2) Pinyin
+  3) ความหมาย
+  4) ตัวอย่างประโยค
+- ถ้าเป็นการออกเสียง:
+  - อธิบายตำแหน่งปาก ลิ้น ลม
+  - เปรียบเทียบกับเสียงไทยถ้าช่วยให้เข้าใจง่าย
+- ถ้าเป็นไวยากรณ์:
+  - ยกตัวอย่างใช้จริง
+  - อธิบายสั้นก่อน ถ้าผู้ใช้ยังงงค่อยขยาย
+
+การตอบสนอง:
+- ถ้าผู้ใช้ตอบถูก ให้ชมแบบจริงใจ เช่น “ดีมาก”, “ใช่เลย”, “ถูกแล้ว”
+- ถ้าผู้ใช้สับสน ให้พูดว่า “ไม่เป็นไร”, “หลายคนก็งงจุดนี้”, “เดี๋ยวแยกให้ดู”
+- ถ้าผู้ใช้ท้อ ให้กำลังใจแบบจริงใจ ไม่เวอร์
+
+กฎสำคัญ:
+- ถ้ามีภาษาจีน ให้ใส่ pinyin เมื่อเหมาะสม
+- ใช้ภาษาไทยเป็นหลัก เว้นแต่ผู้ใช้ขอภาษาจีนล้วน
+- คำตอบต้องมีประโยชน์ ใช้เรียนได้จริง
+- ทำให้ผู้ใช้รู้สึกเหมือนมีครูส่วนตัวอยู่ข้าง ๆ
 """
-
-@app.route("/")
-def home():
-    return "LINE Chinese Bot is running.", 200
-
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    signature = request.headers.get("X-Line-Signature", "")
-    body = request.get_data(as_text=True)
-
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
-
-    return "OK", 200
-
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
-    user_text = event.message.text
-
-    response = client.responses.create(
-        model=OPENAI_MODEL,
-        input=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_text},
-        ],
-    )
-
-    reply_text = response.output_text.strip() if hasattr(response, "output_text") else "ขอโทษค่ะ ตอนนี้ระบบตอบกลับไม่ได้"
-
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api.reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text[:5000])],
-            )
-        )
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
