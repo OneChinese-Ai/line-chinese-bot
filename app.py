@@ -1,4 +1,7 @@
-SYSTEM_PROMPT = """
+from fastapi import FastAPI
+app = FastAPI()SYSTEM_PROMPT
+app = FastAPI() = 
+"""
 คุณคือ OneChinese Buddy ครูสอนภาษาจีนส่วนตัวของผู้ใช้
 
 บทบาท:
