@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 
 app = FastAPI()
-
+user_modes = {}
 SYSTEM_PROMPT = """
 
 บทบาทหลัก:
@@ -202,4 +202,100 @@ Pinyin: xǐ huān
 - หมายความว่าอะไร
 ค่อยเข้าสู่โหมดสอน
 ต้องคาดเดาคำถามที่จะเกิดขึ้นหรือนำนักเรียนด้วยคำถามที่จะทำไปสู่บทสนทนาต่อไปด้วยสัก2-3คำถาม
+กฎสำคัญ:
+
+- ถ้าผู้ใช้พิมพ์คำสั่งที่หมายถึงอยากคุยภาษาจีน เช่น
+
+  “只说中文”
+
+  “我们用中文聊天吧”
+
+  “พูดจีนกับฉัน”
+
+  “โหมดคุยจีน”
+
+  “Chinese only”
+
+  ให้ตีความว่าเป็นการขอเข้าสู่โหมดสนทนาภาษาจีน
+
+- เมื่อเข้าสู่โหมดสนทนาภาษาจีน:
+
+  - ตอบเป็นภาษาจีนเท่านั้น
+
+  - ไม่ต้องแปลไทย
+
+  - ไม่ต้องอธิบายคำศัพท์ เว้นแต่ผู้ใช้ขอ
+
+  - พูดเหมือนเพื่อนคุยกัน ใช้ภาษาง่ายตามระดับผู้เรียน
+
+  - ถ้าผู้ใช้พิมพ์ผิดเล็กน้อย ให้เข้าใจเจตนาก่อน แล้วค่อยช่วยแก้แบบนุ่มนวล
+
+- ถ้าผู้ใช้พิมพ์คำสั่งเช่น
+
+  “แปลไทย”
+
+  “อธิบายไทย”
+
+  “กลับโหมดสอน”
+
+  ให้กลับสู่โหมดสอนปกติ
+
+- ถ้าผู้ใช้พิมพ์ภาษาจีนที่มีลักษณะเป็นบทสนทนา เช่น
+
+  “你好”
+
+  “我今天很累”
+
+  “你在做什么”
+
+  ให้มีแนวโน้มตอบกลับเป็นภาษาจีนก่อน ไม่ต้องรีบแปลไทย
 """
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_message(event):
+    user_text = event.message.text.strip()
+    user_id = event.source.user_id
+    zh_mode_commands = ["只说中文", "我们用中文聊天吧", "พูดจีนกับฉัน", "โหมดคุยจีน", "Chinese only"]
+    teach_mode_commands = ["กลับโหมดสอน", "แปลไทย", "อธิบายไทย", "กลับภาษาไทย"]
+
+    if user_text in zh_mode_commands:
+        user_modes[user_id] = "chat_zh"
+        reply_text = "好呀，我们现在只用中文聊天吧。你今天想聊什么？"
+    elif user_text in teach_mode_commands:
+        user_modes[user_id] = "teach"
+        reply_text = "ได้เลย ตอนนี้กลับมาโหมดสอนปกติแล้วนะ ถ้ามีคำหรือประโยคที่อยากให้ช่วย อันไหนส่งมาได้เลย"
+    else:
+        current_mode = user_modes.get(user_id, "teach")
+
+        if current_mode == "chat_zh":
+            mode_prompt = """
+ตอนนี้ผู้ใช้อยู่ในโหมดสนทนาภาษาจีน
+ให้ตอบเป็นภาษาจีนเท่านั้น
+ไม่ต้องแปลไทย
+ไม่ต้องอธิบายคำศัพท์ เว้นแต่ผู้ใช้ขอ
+ให้พูดเหมือนเพื่อนคุยกัน ใช้ภาษาง่ายและเป็นธรรมชาติ
+"""
+        else:
+            mode_prompt = """
+ตอนนี้ผู้ใช้อยู่ในโหมดสอนปกติ
+ให้ตอบเป็นภาษาไทยเป็นหลัก และใส่ภาษาจีนพร้อม pinyin เมื่อเหมาะสม
+"""
+
+        response = client.responses.create(
+            model=OPENAI_MODEL,
+            input=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": mode_prompt},
+                {"role": "user", "content": user_text},
+            ],
+        )
+
+        reply_text = response.output_text.strip() if hasattr(response, "output_text") else "ขอโทษค่ะ ตอนนี้ระบบตอบกลับไม่ได้"
+
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=reply_text[:5000])],
+            )
+        )
