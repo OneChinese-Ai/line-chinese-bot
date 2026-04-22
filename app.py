@@ -138,47 +138,19 @@ def handle_message(event):
     user_id = event.source.user_id
     history = conversation_histories.get(user_id, [])
 
-    zh_mode_commands = [
+    zh_mode_commands = ["只说中文", "我们用中文聊天吧", "Chinese only"]
+    teach_mode_commands = ["กลับโหมดสอน", "แปลไทย", "อธิบายไทย"]
 
-        "只说中文",
+    if user_text in zh_mode_commands:
+        user_modes[user_id] = "chat_zh"
+        reply_text = "好呀，我们现在只用中文聊天吧。你今天想聊什么？"
 
-        "我们用中文聊天吧",
-
-        "พูดจีนกับฉัน",
-
-        "โหมดคุยจีน",
-
-        "Chinese only",
-
-    ]
-
-    teach_mode_commands = [
-
-        "กลับโหมดสอน",
-
-        "แปลไทย",
-
-        "อธิบายไทย",
-
-        "กลับภาษาไทย",
-
-        "โหมดสอน",
-
-    ]
-
- if user_text in zh_mode_commands:
-    user_modes[user_id] = "chat_zh"
-    conversation_histories[user_id] = []
-    reply_text = "好呀，我们现在只用中文聊天吧。你今天想聊什么？"
-
- elif user_text in teach_mode_commands:
-    user_modes[user_id] = "teach"
-    conversation_histories[user_id] = []
-    reply_text = "ได้เลย ตอนนี้กลับมาโหมดสอนปกติแล้วนะ ส่งคำหรือประโยคที่อยากให้ช่วยมาได้เลย"
+    elif user_text in teach_mode_commands:
+        user_modes[user_id] = "teach"
+        reply_text = "ได้เลย ตอนนี้กลับโหมดสอนปกติแล้ว"
 
     else:
-
-    current_mode = user_modes.get(user_id, "teach")
+        current_mode = user_modes.get(user_id, "teach")
 
     if current_mode == "chat_zh":
 
