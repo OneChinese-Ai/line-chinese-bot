@@ -178,11 +178,11 @@ def handle_message(event):
 
     else:
 
-        current_mode = user_modes.get(user_id, "teach")
+    current_mode = user_modes.get(user_id, "teach")
 
-        if current_mode == "chat_zh":
+    if current_mode == "chat_zh":
 
-            mode_prompt = """
+    mode_prompt = """
 
 ตอนนี้ผู้ใช้อยู่ในโหมดสนทนาภาษาจีน
 
@@ -198,7 +198,7 @@ def handle_message(event):
 
 """
 
-        else:
+    else:
 
             mode_prompt = """
 
@@ -214,7 +214,7 @@ def handle_message(event):
 
 """
 
-      messages = [
+    messages = [
     {"role": "system", "content": SYSTEM_PROMPT},
     {"role": "system", "content": mode_prompt},
 ] + history + [
@@ -230,9 +230,9 @@ response = client.responses.create(
 
             response.output_text.strip()
 
-            if hasattr(response, "output_text") and response.output_text
+    if hasattr(response, "output_text") and response.output_text
 
-            else "ขอโทษนะ ตอนนี้ระบบตอบกลับไม่ได้"
+    else "ขอโทษนะ ตอนนี้ระบบตอบกลับไม่ได้"
 
         )
     history.append({"role": "user", "content": user_text})
@@ -257,7 +257,7 @@ conversation_histories[user_id] = history[-10:]
 
         )
 
-if __name__ == "__main__":
+    if __name__ == "__main__":
 
     port = int(os.environ.get("PORT", 10000))
 
