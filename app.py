@@ -47,7 +47,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # จำโหมดของผู้ใช้แต่ละคน
 
 user_modes = {}
-
+conversation_histories = {}
 SYSTEM_PROMPT = """
 
 คุณคือ OneChinese Buddy ครูสอนภาษาจีนส่วนตัวบน LINE
@@ -68,7 +68,7 @@ SYSTEM_PROMPT = """
 
 1. ต้องรักษาบริบทของบทสนทนาก่อนหน้าเสมอ
 
-2. ถ้าผู้ใช้ตอบสั้น ๆ เช่น ได้ / โอเค / ต่อ / เอา / ต้องการ / ใช่ ให้ตีความตามบริบทก่อนหน้า
+2. ถ้าผู้ใช้ตอบสั้น ๆ เช่น ได้ / โอเค / ต่อ / เอา / ต้องการ / ใช่ / 需要长一点 / 继续 / 然后呢  ให้ตีความตามบริบทก่อนหน้า
 
 3. ถ้าผู้ใช้พิมพ์ภาษาจีนคำเดียวหรือสั้น ๆ และมีลักษณะเหมือนอยากเรียนคำนั้น ให้สอนคำนั้นทันที
 
@@ -136,6 +136,7 @@ def handle_message(event):
     user_text = event.message.text.strip()
 
     user_id = event.source.user_id
+    history = conversation_histories.get(user_id, [])
 
     zh_mode_commands = [
 
@@ -165,17 +166,15 @@ def handle_message(event):
 
     ]
 
-    if user_text in zh_mode_commands:
+ if user_text in zh_mode_commands:
+    user_modes[user_id] = "chat_zh"
+    conversation_histories[user_id] = []
+    reply_text = "好呀，我们现在只用中文聊天吧。你今天想聊什么？"
 
-        user_modes[user_id] = "chat_zh"
-
-        reply_text = "好呀，我们现在只用中文聊天吧。你今天想聊什么？"
-
-    elif user_text in teach_mode_commands:
-
-        user_modes[user_id] = "teach"
-
-        reply_text = "ได้เลย ตอนนี้กลับมาโหมดสอนปกติแล้วนะ ส่งคำหรือประโยคที่อยากให้ช่วยมาได้เลย"
+ elif user_text in teach_mode_commands:
+    user_modes[user_id] = "teach"
+    conversation_histories[user_id] = []
+    reply_text = "ได้เลย ตอนนี้กลับมาโหมดสอนปกติแล้วนะ ส่งคำหรือประโยคที่อยากให้ช่วยมาได้เลย"
 
     else:
 
@@ -215,21 +214,17 @@ def handle_message(event):
 
 """
 
-        response = client.responses.create(
+      messages = [
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "system", "content": mode_prompt},
+] + history + [
+    {"role": "user", "content": user_text},
+]
 
-            model=OPENAI_MODEL,
-
-            input=[
-
-                {"role": "system", "content": SYSTEM_PROMPT},
-
-                {"role": "system", "content": mode_prompt},
-
-                {"role": "user", "content": user_text},
-
-            ],
-
-        )
+response = client.responses.create(
+    model=OPENAI_MODEL,
+    input=messages,
+)
 
         reply_text = (
 
@@ -240,6 +235,11 @@ def handle_message(event):
             else "ขอโทษนะ ตอนนี้ระบบตอบกลับไม่ได้"
 
         )
+    history.append({"role": "user", "content": user_text})
+    history.append({"role": "assistant", "content": reply_text})
+
+# เก็บแค่ 10 ข้อความล่าสุด (5 คู่ถามตอบ) เพื่อไม่ให้เปลืองเกินไป
+conversation_histories[user_id] = history[-10:]
 
     with ApiClient(configuration) as api_client:
 
