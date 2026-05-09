@@ -405,37 +405,14 @@ def handle_message(event):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-@app.route("/api/game-chat", methods=["POST"])
-def game_chat():
-    data = request.json
-
-    npc = data.get("npc", "中文老师")
-    prompt = data.get("prompt", "")
-    user = data.get("user", "")
-
-    response = client.responses.create(
-        model="gpt-5.2",
-        input=f"""
-你是中国生活模拟器里的NPC。
-
-NPC角色:
-{npc}
-
-场景:
-{prompt}
-
-用户:
-{user}
-
-规则:
-1. 用自然中文回答
-2. 加拼音
-3. 加泰语解释
-4. 保持角色扮演
-5. 不要太长
-"""
-    )
-
-    return jsonify({
-        "reply": response.output_text
-    })   
+Player clicks "酒店前台"
+  → 125-ai-role-fix.js sets currentNPCContext = NPC_ROLES.hotel
+  → player types "我要入住"
+  → POST /api/game-chat sends:
+      { npc:"酒店前台", location:"酒店", hskLevel:3,
+        weather:"clear", time:"上午", user:"我要入住", history:[] }
+  → backend picks NPC_PROMPTS["酒店前台"]
+  → builds system prompt: role + location + mission + HSK rules
+  → OpenAI (gpt-4o-mini) replies as hotel staff
+  → returns { reply: "您好，欢迎入住！请问您有预订吗？\n..." }
+  → frontend parses 中文/拼音/泰语/词汇 and renders card
