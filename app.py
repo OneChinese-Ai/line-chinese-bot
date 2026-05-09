@@ -403,7 +403,7 @@ def handle_message(event):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-    @app.route("/api/game-chat", methods=["POST"])
+@app.route("/api/game-chat", methods=["POST"])
 def game_chat():
     data = request.json
 
@@ -436,4 +436,4 @@ NPC角色:
 
     return jsonify({
         "reply": response.output_text
-    })
+    })   
